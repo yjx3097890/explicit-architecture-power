@@ -73,7 +73,9 @@ UI Layer → Application Layer → Domain Layer ← Infrastructure Layer
 │   └── pkg/                    # 跨上下文共享代码（Logger, Error types, Middleware）
 ├── configs/                    # 配置文件（.yaml）
 ├── api/                        # OpenAPI/Swagger 定义
-├── deploy/                     # 部署配置（Dockerfile, K8s）
+├── deploy/                     # 部署配置（K8s 等）
+├── Dockerfile                  # Docker 多阶段构建
+├── .dockerignore               # Docker 忽略文件
 ├── go.mod
 └── go.sum
 ```

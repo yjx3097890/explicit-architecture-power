@@ -622,6 +622,65 @@ if err := db.AutoMigrate(&persistence.{EntityName}Model{}); err != nil {
 
 ---
 
+## Step 9: 创建 Dockerfile
+
+### Dockerfile（多阶段构建）
+
+```dockerfile
+# 构建阶段
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+
+# 安装依赖
+COPY go.mod go.sum ./
+RUN go mod download
+
+# 复制源码并构建
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/server ./cmd/server
+
+# 运行阶段
+FROM alpine:3.19
+
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /app
+
+# 从构建阶段复制二进制文件
+COPY --from=builder /app/server .
+COPY --from=builder /app/configs ./configs
+
+# 设置时区
+ENV TZ=Asia/Shanghai
+
+EXPOSE 8080
+
+CMD ["./server"]
+```
+
+### .dockerignore
+
+```
+.git
+.gitignore
+.idea
+.vscode
+.kiro
+*.md
+!README.md
+tmp/
+vendor/
+*.test
+*.out
+coverage.*
+docker-compose*.yml
+deploy/
+docs/
+```
+
+---
+
 ## 完成
 
 项目脚手架搭建完成后，提醒用户：
@@ -630,3 +689,5 @@ if err := db.AutoMigrate(&persistence.{EntityName}Model{}); err != nil {
 2. 确保数据库已创建
 3. 运行 `go run cmd/server/main.go` 启动服务
 4. 使用 `curl` 或 Postman 测试 API
+5. 构建 Docker 镜像：`docker build -t {project-name} .`
+6. 运行容器：`docker run -p 8080:8080 {project-name}`
