@@ -20,6 +20,8 @@ author: "yanjixian"
 - **layer-rules** — 各层详细规范与代码示例：Domain、Application、Infrastructure、UI 层的具体规则
 - **go-coding-standards** — Go 语言代码规范：命名、格式化、错误处理、并发、测试、性能优化
 - **api-response-format** — API 统一响应格式规范：JSON 结构、状态码、Go 实现代码
+- **git-commit-standards** — Git 提交规范：Git 初始化、Conventional Commits 格式、commit-msg Hook 校验
+- **deployment** — 项目部署指南：Docker Compose 和 Kubernetes 两种部署方案、Argo Workflows CI/CD
 
 ## 核心设计理念
 
@@ -73,9 +75,14 @@ UI Layer → Application Layer → Domain Layer ← Infrastructure Layer
 │   └── pkg/                    # 跨上下文共享代码（Logger, Error types, Middleware）
 ├── configs/                    # 配置文件（.yaml）
 ├── api/                        # OpenAPI/Swagger 定义
-├── deploy/                     # 部署配置（K8s 等）
+├── deploy/                     # 部署配置
+│   ├── docker-compose/         #   Docker Compose 部署
+│   └── k8s/                    #   Kubernetes 部署（test / production）
+├── .githooks/                  # Git Hooks（commit-msg 提交信息校验）
+├── Makefile                    # 统一构建管理入口
 ├── Dockerfile                  # Docker 多阶段构建
 ├── .dockerignore               # Docker 忽略文件
+├── .gitignore                  # Git 忽略文件
 ├── go.mod
 └── go.sum
 ```
@@ -103,9 +110,13 @@ internal/
 - [ ] **配置分离**：外部服务的 URL、Key 等是否放在 `configs/` 或环境变量中？
 - [ ] **错误处理**：是否使用 `fmt.Errorf("xxx: %w", err)` 包装错误？
 - [ ] **Context 传递**：所有跨层调用是否传递了 `context.Context`？
+- [ ] **Git Hook 就绪**：`.githooks/commit-msg` 是否存在且可执行？（`git config core.hooksPath .githooks`）
+- [ ] **提交信息规范**：提交信息是否符合 `<type>(<scope>): <subject>` 格式？
 
 ## Best Practices
 
+- 使用 `Makefile` 作为项目统一入口，所有构建、测试、格式化、Git Hooks 安装等操作通过 `make` 命令管理
+- 新成员 clone 项目后首先执行 `make setup-hooks` 安装 Git Hooks，确保提交信息格式校验生效
 - 每个限界上下文独立自治，上下文之间通过 Application 层的接口通信，避免直接引用其他上下文的 Domain
 - Command 和 Query 分离（CQRS），写操作放 `app/command/`，读操作放 `app/query/`
 - Repository 接口定义在 Domain 层，实现在 Infrastructure 层

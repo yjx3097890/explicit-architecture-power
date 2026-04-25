@@ -16,7 +16,107 @@
 
 ---
 
-## Step 2: 创建项目结构
+## Step 2: Git 初始化与提交规范
+
+### 初始化 Git 仓库
+
+```bash
+git init
+```
+
+### 创建 .gitignore
+
+```gitignore
+# 二进制文件
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/server
+/tmp
+
+# 测试覆盖
+*.test
+*.out
+coverage.*
+
+# 依赖
+/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 配置文件（敏感信息）
+configs/config.local.yaml
+.env
+.env.local
+
+# 日志
+logs/
+*.log
+```
+
+### 配置 commit-msg Hook（零依赖方案）
+
+创建 `.githooks/commit-msg`：
+
+```bash
+#!/bin/sh
+# commit-msg hook - 校验提交信息格式
+# 格式: <type>(<scope>): <subject>  或  <type>: <subject>
+
+commit_msg_file=$1
+commit_msg=$(head -1 "$commit_msg_file")
+
+# 允许的 type 列表
+types="feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
+
+# 正则匹配
+pattern="^($types)(\([a-z0-9_-]+\))?: .{1,100}$"
+
+if ! echo "$commit_msg" | grep -qE "$pattern"; then
+    echo "❌ 提交信息格式错误！"
+    echo ""
+    echo "正确格式: <type>(<scope>): <subject>"
+    echo "允许的 type: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+    echo ""
+    echo "示例:"
+    echo "  feat(user): 添加用户注册接口"
+    echo "  fix: 修复数据库连接泄漏"
+    echo ""
+    echo "你的提交信息: $commit_msg"
+    exit 1
+fi
+
+# 检查 header 长度
+header_length=${#commit_msg}
+if [ "$header_length" -gt 100 ]; then
+    echo "❌ 提交信息标题过长！（${header_length}/100）"
+    exit 1
+fi
+```
+
+激活 Hook：
+
+```bash
+chmod +x .githooks/commit-msg
+git config core.hooksPath .githooks
+```
+
+> Makefile 中的 `setup-hooks` 目标将在 Step 11 统一创建。
+
+---
+
+## Step 3: 创建项目结构
 
 根据收集的信息，创建以下目录结构：
 
@@ -37,7 +137,7 @@ mkdir -p deploy
 
 ---
 
-## Step 3: 初始化 Go Module
+## Step 4: 初始化 Go Module
 
 ```bash
 go mod init {module_name}
@@ -72,7 +172,7 @@ go get github.com/spf13/viper
 
 ---
 
-## Step 4: 创建配置文件
+## Step 5: 创建配置文件
 
 ### configs/config.yaml
 
@@ -119,7 +219,7 @@ database:
 
 ---
 
-## Step 5: 创建共享基础代码
+## Step 6: 创建共享基础代码
 
 ### internal/pkg/response/response.go
 
@@ -240,7 +340,7 @@ func NewConnection(cfg Config) (*gorm.DB, error) {
 
 ---
 
-## Step 6: 创建第一个限界上下文
+## Step 7: 创建第一个限界上下文
 
 以下以 `{context_name}` 为例，展示各层的骨架代码。
 
@@ -552,7 +652,7 @@ func (h *Handler) GetByID(c *gin.Context) {
 
 ---
 
-## Step 7: 创建 main.go
+## Step 8: 创建 main.go
 
 `cmd/server/main.go`:
 ```go
@@ -609,7 +709,7 @@ func main() {
 
 ---
 
-## Step 8: 自动迁移（可选）
+## Step 9: 自动迁移（可选）
 
 在 main.go 中添加自动迁移：
 
@@ -622,7 +722,7 @@ if err := db.AutoMigrate(&persistence.{EntityName}Model{}); err != nil {
 
 ---
 
-## Step 9: 创建 Dockerfile
+## Step 10: 创建 Dockerfile
 
 ### Dockerfile（多阶段构建）
 
@@ -681,13 +781,238 @@ docs/
 
 ---
 
+## Step 11: 创建 deploy 目录
+
+参考 **deployment** steering 文件创建完整的部署配置。
+
+```bash
+mkdir -p deploy/docker-compose/configs
+mkdir -p deploy/k8s/test/app
+mkdir -p deploy/k8s/production/app
+```
+
+创建以下文件：
+
+- `deploy/.gitignore` — 忽略 `secret.yaml` 等敏感文件
+- `deploy/docker-compose/.env.example` — 环境变量模板
+- `deploy/docker-compose/docker-compose.yaml` — Docker Compose 编排（后端 + MySQL + Redis）
+- `deploy/docker-compose/docker-compose.prod.yaml` — 生产环境覆盖配置
+- `deploy/docker-compose/configs/config.yaml` — 应用配置文件
+- `deploy/k8s/test/app/app.yaml` — K8s 测试环境（Deployment + Service + HPA）
+- `deploy/k8s/test/app/configmap.yaml` — K8s ConfigMap
+- `deploy/k8s/test/app/secret.yaml.example` — K8s Secret 模板
+- `deploy/k8s/test/argo.yaml` — Argo Workflows CI/CD 工作流
+- `deploy/k8s/production/app/app.yaml` — K8s 生产环境
+- `deploy/k8s/production/app/ingress.yaml` — Ingress 配置
+- `deploy/README.md` — 部署文档
+
+> 具体文件内容参见 `deployment` steering 文件中的模板。
+
+---
+
+## Step 12: 创建 Makefile
+
+Makefile 是 Go 后端项目的统一入口，所有构建、测试、格式化、Git Hooks 等操作都通过 `make` 命令管理。
+
+```makefile
+# {app_name} Makefile
+
+# ==================== 变量定义 ====================
+APP_NAME={app_name}
+VERSION=1.0.0
+BUILD_DIR=bin
+MAIN_PATH=./cmd/server
+
+GOCMD=go
+GOBUILD=$(GOCMD) build
+GOCLEAN=$(GOCMD) clean
+GOTEST=$(GOCMD) test
+GOMOD=$(GOCMD) mod
+GOFMT=$(GOCMD) fmt
+
+LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION)"
+
+.PHONY: all build clean test test-coverage deps fmt lint run dev \
+        setup-hooks verify-hooks install-tools \
+        docker-build docker-run quality-check release help
+
+# ==================== 默认目标 ====================
+
+## 完整构建流程（含 Hook 安装）
+all: setup-hooks clean deps fmt lint test build
+
+# ==================== 构建 ====================
+
+## 构建应用
+build:
+	@echo "构建应用..."
+	@mkdir -p $(BUILD_DIR)
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_PATH)
+	@echo "✅ 构建完成: $(BUILD_DIR)/$(APP_NAME)"
+
+## 清理构建文件
+clean:
+	@echo "清理构建文件..."
+	$(GOCLEAN)
+	@rm -rf $(BUILD_DIR)
+	@echo "✅ 清理完成"
+
+# ==================== 测试 ====================
+
+## 运行测试
+test:
+	@echo "运行测试..."
+	$(GOTEST) -v ./...
+
+## 运行测试并生成覆盖率报告
+test-coverage:
+	@echo "运行测试并生成覆盖率报告..."
+	$(GOTEST) -v -coverprofile=coverage.out ./...
+	$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	@echo "✅ 覆盖率报告: coverage.html"
+
+# ==================== 代码质量 ====================
+
+## 下载并整理依赖
+deps:
+	@echo "下载依赖..."
+	$(GOMOD) download
+	$(GOMOD) tidy
+
+## 格式化代码
+fmt:
+	@echo "格式化代码..."
+	$(GOFMT) ./...
+
+## 代码检查（需要安装 golangci-lint）
+lint:
+	@echo "运行代码检查..."
+	golangci-lint run
+
+## 代码质量完整检查
+quality-check: fmt lint test
+	@echo "✅ 代码质量检查完成"
+
+# ==================== 运行 ====================
+
+## 运行应用
+run:
+	@echo "运行应用..."
+	$(GOCMD) run $(MAIN_PATH)/main.go
+
+## 开发模式运行（热重载，需要 air）
+dev:
+	@echo "开发模式运行..."
+	air
+
+# ==================== Git Hooks ====================
+
+## 安装 Git Hooks（新成员 clone 后首先执行）
+setup-hooks:
+	@mkdir -p .githooks
+	@chmod +x .githooks/commit-msg
+	@git config core.hooksPath .githooks
+	@echo "✅ Git Hooks 已安装"
+
+## 验证 Git Hooks 是否正常工作
+verify-hooks:
+	@echo "验证 commit-msg hook..."
+	@echo "feat: test message" | .githooks/commit-msg /dev/stdin && echo "✅ Hook 校验通过" || echo "❌ Hook 校验失败"
+
+# ==================== 开发工具 ====================
+
+## 安装开发工具（含 Hook 安装）
+install-tools: setup-hooks
+	@echo "安装开发工具..."
+	go install github.com/air-verse/air@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@echo "✅ 开发工具安装完成"
+
+# ==================== Docker ====================
+
+## 构建 Docker 镜像
+docker-build:
+	@echo "构建 Docker 镜像..."
+	docker build -t $(APP_NAME):$(VERSION) .
+	docker tag $(APP_NAME):$(VERSION) $(APP_NAME):latest
+	@echo "✅ Docker 镜像构建完成"
+
+## 运行 Docker 容器
+docker-run:
+	@echo "运行 Docker 容器..."
+	docker run -p 8080:8080 --name $(APP_NAME) $(APP_NAME):latest
+
+# ==================== Docker Compose 部署 ====================
+
+## Docker Compose 启动（开发环境）
+compose-up:
+	docker compose -f deploy/docker-compose/docker-compose.yaml \
+		--env-file deploy/docker-compose/.env up -d
+
+## Docker Compose 停止
+compose-down:
+	docker compose -f deploy/docker-compose/docker-compose.yaml down
+
+## Docker Compose 查看日志
+compose-logs:
+	docker compose -f deploy/docker-compose/docker-compose.yaml logs -f app
+
+## Docker Compose 生产环境启动
+compose-prod:
+	docker compose \
+		-f deploy/docker-compose/docker-compose.yaml \
+		-f deploy/docker-compose/docker-compose.prod.yaml \
+		--env-file deploy/docker-compose/.env up -d
+
+# ==================== 发布 ====================
+
+## 发布准备
+release: clean deps quality-check build
+	@echo "✅ 发布准备完成"
+
+# ==================== 帮助 ====================
+
+## 显示帮助信息
+help:
+	@echo "$(APP_NAME) Makefile 使用说明"
+	@echo ""
+	@echo "可用命令:"
+	@echo "  make all              完整构建流程（含 Hook 安装）"
+	@echo "  make build            构建应用"
+	@echo "  make clean            清理构建文件"
+	@echo "  make test             运行测试"
+	@echo "  make test-coverage    运行测试并生成覆盖率报告"
+	@echo "  make deps             下载并整理依赖"
+	@echo "  make fmt              格式化代码"
+	@echo "  make lint             代码检查"
+	@echo "  make quality-check    代码质量完整检查"
+	@echo "  make run              运行应用"
+	@echo "  make dev              开发模式运行（热重载）"
+	@echo "  make setup-hooks      安装 Git Hooks（提交信息格式校验）"
+	@echo "  make verify-hooks     验证 Git Hooks 是否正常工作"
+	@echo "  make install-tools    安装开发工具"
+	@echo "  make docker-build     构建 Docker 镜像"
+	@echo "  make docker-run       运行 Docker 容器"
+	@echo "  make compose-up       Docker Compose 启动（开发环境）"
+	@echo "  make compose-down     Docker Compose 停止"
+	@echo "  make compose-logs     Docker Compose 查看日志"
+	@echo "  make compose-prod     Docker Compose 生产环境启动"
+	@echo "  make release          发布准备"
+	@echo "  make help             显示帮助信息"
+```
+
+---
+
 ## 完成
 
 项目脚手架搭建完成后，提醒用户：
 
-1. 运行 `go mod tidy` 整理依赖
-2. 确保数据库已创建
-3. 运行 `go run cmd/server/main.go` 启动服务
-4. 使用 `curl` 或 Postman 测试 API
-5. 构建 Docker 镜像：`docker build -t {project-name} .`
-6. 运行容器：`docker run -p 8080:8080 {project-name}`
+1. 运行 `make setup-hooks` 安装 Git Hooks
+2. 运行 `make install-tools` 安装开发工具（air、golangci-lint）
+3. 运行 `make deps` 下载并整理依赖
+4. 确保数据库已创建
+5. 运行 `make run` 启动服务（或 `make dev` 热重载开发）
+6. 运行 `make quality-check` 提交前代码质量检查
+7. Docker Compose 部署：`cp deploy/docker-compose/.env.example deploy/docker-compose/.env && make compose-up`
+8. 运行 `make help` 查看所有可用命令
+9. 构建 Docker 镜像：`make docker-build`
