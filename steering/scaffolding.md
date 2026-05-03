@@ -12,7 +12,8 @@
 2. **数据库选择**：MySQL 还是 PostgreSQL？
 3. **是否需要 Redis**？
 4. **初始限界上下文**：第一个业务领域是什么？（如 user、order、product）
-5. **API 端口**：默认 8080
+5. **API 端口**：默认 8080  
+6. **`agents.md`** 将在 **Step 3.5** 根据已收集信息自动生成，用于约束 AI/IDE 代理在本仓库中的行为；除非用户要求额外条款，否则不必单独提问。
 
 ---
 
@@ -134,6 +135,23 @@ mkdir -p configs
 mkdir -p api
 mkdir -p deploy
 ```
+
+---
+
+## Step 3.5: 生成 `agents.md`（代理 / IDE 约定）
+
+在**项目根目录**创建 **`agents.md`**（小写文件名）。面向 **AI 编码代理与 IDE 助手**，说明本仓库的显式架构边界与协作方式；内容应具体、可执行。
+
+建议章节：
+
+1. **仓库用途** — Go module `{module_name}`、Web 框架 Gin、Gorm、数据库选型（MySQL / PostgreSQL）、是否使用 Redis  
+2. **架构约束** — 依赖方向：`UI → Application → Domain ← Infrastructure`；**Domain 层**不得依赖 Gin、Gorm、第三方 SDK；实体与持久化模型分离，经 Mapper 转换  
+3. **必读规范** — 与本 power 对齐：**`layer-rules`**、**`api-response-format`**、**`go-coding-standards`**、**`git-commit-standards`**、**`deployment`**（按需引用）  
+4. **限界上下文** — 首个上下文目录 **`internal/{context_name}/`**，各层子目录 `domain`、`app/command`、`app/query`、`infra`、`ui` 的职责简述  
+5. **命令与运行** — 脚手架完成后以 **Makefile**（Step 12）为准：`make run` / `make dev` / `make test` / `make quality-check`；在 Makefile 尚未创建前可写 `go run ./cmd/server`（若已生成 main）  
+6. **禁区与注意** — 不在 domain 写 SQL；HTTP DTO 与领域模型分清；统一响应结构见 `internal/pkg/response` 与 **api-response-format**  
+
+将 Step 1 中的 `{module_name}`、`{context_name}`、端口、数据库类型填入对应段落，避免占位符残留。
 
 ---
 
@@ -769,6 +787,7 @@ CMD ["./server"]
 .kiro
 *.md
 !README.md
+!agents.md
 tmp/
 vendor/
 *.test
@@ -1007,12 +1026,13 @@ help:
 
 项目脚手架搭建完成后，提醒用户：
 
-1. 运行 `make setup-hooks` 安装 Git Hooks
-2. 运行 `make install-tools` 安装开发工具（air、golangci-lint）
-3. 运行 `make deps` 下载并整理依赖
-4. 确保数据库已创建
-5. 运行 `make run` 启动服务（或 `make dev` 热重载开发）
-6. 运行 `make quality-check` 提交前代码质量检查
-7. Docker Compose 部署：`cp deploy/docker-compose/.env.example deploy/docker-compose/.env && make compose-up`
-8. 运行 `make help` 查看所有可用命令
-9. 构建 Docker 镜像：`make docker-build`
+1. 阅读根目录 **`agents.md`**；调整分层策略、新增限界上下文或改变技术栈时，同步更新该文件，便于代理与人类协作一致  
+2. 运行 `make setup-hooks` 安装 Git Hooks
+3. 运行 `make install-tools` 安装开发工具（air、golangci-lint）
+4. 运行 `make deps` 下载并整理依赖
+5. 确保数据库已创建
+6. 运行 `make run` 启动服务（或 `make dev` 热重载开发）
+7. 运行 `make quality-check` 提交前代码质量检查
+8. Docker Compose 部署：`cp deploy/docker-compose/.env.example deploy/docker-compose/.env && make compose-up`
+9. 运行 `make help` 查看所有可用命令
+10. 构建 Docker 镜像：`make docker-build`

@@ -83,6 +83,7 @@ UI Layer → Application Layer → Domain Layer ← Infrastructure Layer
 ├── Dockerfile                  # Docker 多阶段构建
 ├── .dockerignore               # Docker 忽略文件
 ├── .gitignore                  # Git 忽略文件
+├── agents.md                   # AI/IDE 代理的仓库级约定（脚手架 Step 3.5 生成）
 ├── go.mod
 └── go.sum
 ```
@@ -115,6 +116,7 @@ internal/
 
 ## Best Practices
 
+- 新项目脚手架在 **Step 3.5** 生成根目录 **`agents.md`**，约定 AI/IDE 代理须遵守的分层与命令；架构演进时同步更新该文件
 - 使用 `Makefile` 作为项目统一入口，所有构建、测试、格式化、Git Hooks 安装等操作通过 `make` 命令管理
 - 新成员 clone 项目后首先执行 `make setup-hooks` 安装 Git Hooks，确保提交信息格式校验生效
 - 每个限界上下文独立自治，上下文之间通过 Application 层的接口通信，避免直接引用其他上下文的 Domain
